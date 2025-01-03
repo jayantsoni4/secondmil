@@ -1,14 +1,14 @@
 require("dotenv").config(); // Load environment variables from .env file
 const express = require("express");
 const mongoose = require("mongoose");
-const bodyParser = require("body-parser");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.static("public"));
+app.use(express.json()); // Parse JSON data
+app.use(express.urlencoded({ extended: true })); // Parse URL-encoded data
+app.use(express.static("public")); // Serve static files
 
 // Connect to MongoDB Atlas
 mongoose
@@ -17,11 +17,14 @@ mongoose
     useUnifiedTopology: true,
   })
   .then(() => console.log("Connected to MongoDB Atlas"))
-  .catch((error) => console.error("Error connecting to MongoDB Atlas:", error));
+  .catch((error) => {
+    console.error("Error connecting to MongoDB Atlas:", error);
+    process.exit(1); // Exit if connection fails
+  });
 
 // Define a schema and model for tasks
 const taskSchema = new mongoose.Schema({
-  task: String,
+  task: { type: String, required: true },
 });
 
 const Task = mongoose.model("Task", taskSchema);
@@ -38,7 +41,24 @@ app.get("/", async (req, res) => {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>To-Do App</title>
         <style>
-          /* Add your CSS styles here */
+          body {
+            font-family: Arial, sans-serif;
+          }
+          .container {
+            width: 80%;
+            margin: auto;
+            text-align: center;
+          }
+          form {
+            margin: 20px 0;
+          }
+          ul {
+            list-style-type: none;
+            padding: 0;
+          }
+          li {
+            margin: 10px 0;
+          }
         </style>
       </head>
       <body>
@@ -54,7 +74,7 @@ app.get("/", async (req, res) => {
                 (task) => `
                 <li>
                   ${task.task}
-                  <form action="/delete" method="POST" style="margin: 0;">
+                  <form action="/delete" method="POST" style="display: inline;">
                     <input type="hidden" name="id" value="${task._id}" />
                     <button type="submit" class="delete">Delete</button>
                   </form>
@@ -76,6 +96,7 @@ app.get("/", async (req, res) => {
 app.post("/add", async (req, res) => {
   try {
     const { task } = req.body;
+    if (!task) return res.status(400).send("Task cannot be empty.");
     const newTask = new Task({ task });
     await newTask.save();
     res.redirect("/");
@@ -86,8 +107,9 @@ app.post("/add", async (req, res) => {
 
 // Delete a task
 app.post("/delete", async (req, res) => {
-  try {
+  try { 
     const { id } = req.body;
+    if (!id) return res.status(400).send("Task ID is required.");
     await Task.findByIdAndDelete(id);
     res.redirect("/");
   } catch (error) {
