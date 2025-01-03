@@ -1,102 +1,101 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const bodyParser = require('body-parser');
+require("dotenv").config(); // Load environment variables from .env file
+const express = require("express");
+const mongoose = require("mongoose");
+const bodyParser = require("body-parser");
 
 const app = express();
-const port = 5000;
+const PORT = 3000;
 
 // Middleware
-app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.static("public"));
 
-// MongoDB connection
-const dbURI = 'mongodb://localhost:27017/curd'; // Replace 'mydatabase' with your database name
-mongoose.connect(dbURI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-}).then(() => {
-  console.log('Connected to MongoDB');
-}).catch((err) => {
-  console.error('Error connecting to MongoDB:', err);
+// Connect to MongoDB Atlas
+mongoose
+  .connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => console.log("Connected to MongoDB Atlas"))
+  .catch((error) => console.error("Error connecting to MongoDB Atlas:", error));
+
+// Define a schema and model for tasks
+const taskSchema = new mongoose.Schema({
+  task: String,
 });
 
-// Define a Schema
-const userSchema = new mongoose.Schema({
-  name: String,
-  email: String,
-  age: Number,
-});
+const Task = mongoose.model("Task", taskSchema);
 
-// Create a Model
-const User = mongoose.model('User', userSchema);
-
-// Routes
-
-// Root Route
-app.get('/', (req, res) => {
-  res.send('MongoDB and Node.js App is Running!');
-});
-
-// Create a new user
-app.post('/users', async (req, res) => {
+// Serve the main page
+app.get("/", async (req, res) => {
   try {
-    const user = new User(req.body);
-    await user.save();
-    res.status(201).json(user);
+    const tasks = await Task.find();
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>To-Do App</title>
+        <style>
+          /* Add your CSS styles here */
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>To-Do App</h1>
+          <form action="/add" method="POST">
+            <input type="text" name="task" placeholder="Enter a new task" required />
+            <button type="submit">Add Task</button>
+          </form>
+          <ul>
+            ${tasks
+              .map(
+                (task) => `
+                <li>
+                  ${task.task}
+                  <form action="/delete" method="POST" style="margin: 0;">
+                    <input type="hidden" name="id" value="${task._id}" />
+                    <button type="submit" class="delete">Delete</button>
+                  </form>
+                </li>
+              `
+              )
+              .join("")}
+          </ul>
+        </div>
+      </body>
+      </html>
+    `);
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(500).send("Error loading tasks.");
   }
 });
 
-// Get all users
-app.get('/users', async (req, res) => {
+// Add a new task
+app.post("/add", async (req, res) => {
   try {
-    const users = await User.find();
-    res.json(users);
+    const { task } = req.body;
+    const newTask = new Task({ task });
+    await newTask.save();
+    res.redirect("/");
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).send("Error adding task.");
   }
 });
 
-// Get a user by ID
-app.get('/users/:id', async (req, res) => {
+// Delete a task
+app.post("/delete", async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
-    if (!user) {
-      return res.status(404).send('User not found');
-    }
-    res.json(user);
+    const { id } = req.body;
+    await Task.findByIdAndDelete(id);
+    res.redirect("/");
   } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Update a user by ID
-app.put('/users/:id', async (req, res) => {
-  try {
-    const user = await User.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!user) {
-      return res.status(404).send('User not found');
-    }
-    res.json(user);
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-});
-
-// Delete a user by ID
-app.delete('/users/:id', async (req, res) => {
-  try {
-    const user = await User.findByIdAndDelete(req.params.id);
-    if (!user) {
-      return res.status(404).send('User not found');
-    }
-    res.send('User deleted successfully');
-  } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(500).send("Error deleting task.");
   }
 });
 
 // Start the server
-app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
+app.listen(PORT, () => {
+  console.log(`Server is running on http://localhost:${PORT}`);
 });

@@ -1,7 +1,7 @@
 {
 	"version": 2,
 	"builds": [
-	  { "src": "./task.js", "use": "@vercel/node" }
+	  { "src": "api/task.js", "use": "@vercel/node" }
 	],
 	"routes": [
 	  { "src": "/(.*)", "dest": "api/index.js" }
